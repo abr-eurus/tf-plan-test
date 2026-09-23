@@ -75,25 +75,50 @@ jobs:
           name: tfplan
           path: ${{ env.TF_WORKING_DIR }}/plan.tfplan
           retention-days: 5
+      
+      - name: Set visualization path
+        id: viz-path
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "path=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=run-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Upload plan visualization
-        uses: actions/upload-artifact@v4
+      - name: Prepare visualization for Pages
+        run: |
+          mkdir -p pages-out
+          cp plan-visualization.html pages-out/plan-visualization.html
+
+      - name: Publish visualization to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          name: plan-visualization
-          path: plan-visualization.html
-          retention-days: 5
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: pages-out
+          destination_dir: ${{ steps.viz-path.outputs.path }}
+          keep_files: true
+
+      # - name: Upload plan visualization
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: plan-visualization
+      #     path: plan-visualization.html
+      #     retention-days: 5
 
       - name: Comment plan summary on PR
-        # if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pagesUrl = `https://${owner}.github.io/${repo}/${{ steps.viz-path.outputs.path }}/plan-visualization.html`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🪄 **Terraform plan generated.**\n\nDownload the interactive visualization from the [workflow run artifacts](${runUrl}).`
+              owner,
+              repo,
+              body: `🪄 **Terraform plan generated.**\n\nView the interactive visualization here: ${pagesUrl}`
             });
 
   # -----------------------------------------------------------------
