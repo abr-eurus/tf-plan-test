@@ -75,64 +75,19 @@ jobs:
           path: ${{ env.TF_WORKING_DIR }}/plan.tfplan
           retention-days: 5
       
-      - name: Extract plan stats
-        id: stats
-        working-directory: ${{ env.TF_WORKING_DIR }}
+      - name: Add visualization to Job Summary
         run: |
-          ADD=$(jq '[.resource_changes[]? | select(.change.actions == ["create"])] | length' plan.json)
-          CHANGE=$(jq '[.resource_changes[]? | select(.change.actions == ["update"])] | length' plan.json)
-          DESTROY=$(jq '[.resource_changes[]? | select(.change.actions == ["delete"])] | length' plan.json)
-          REPLACE=$(jq '[.resource_changes[]? | select(.change.actions == ["delete","create"] or .change.actions == ["create","delete"])] | length' plan.json)
-          echo "add=$ADD" >> "$GITHUB_OUTPUT"
-          echo "change=$CHANGE" >> "$GITHUB_OUTPUT"
-          echo "destroy=$DESTROY" >> "$GITHUB_OUTPUT"
-          echo "replace=$REPLACE" >> "$GITHUB_OUTPUT"
-
-      - name: Set visualization path
-        id: viz-path
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "path=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "path=run-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Prepare visualization for Pages
-        run: |
-          mkdir -p pages-out
-          cp plan-visualization.html pages-out/plan-visualization.html
-
-      # ---------------------------------------------------------------
-      # Publish to GitHub Pages so the visualizer's JS actually runs.
-      # (Job Summaries strip <script> tags, so embedding the HTML there
-      # directly only ever shows a static, non-interactive shell.)
-      # ---------------------------------------------------------------
-      - name: Publish visualization to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: pages-out
-          destination_dir: ${{ steps.viz-path.outputs.path }}
-          keep_files: true
-
-      - name: Build Job Summary
-        run: |
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
-          PAGES_URL="https://${OWNER}.github.io/${REPO}/${{ steps.viz-path.outputs.path }}/plan-visualization.html"
-
-          {
-            echo "## 🪄 Terraform Plan Summary"
-            echo ""
-            echo "| ✅ Add | 🔄 Change | ♻️ Replace | ❌ Destroy |"
-            echo "|:---:|:---:|:---:|:---:|"
-            echo "| ${{ steps.stats.outputs.add }} | ${{ steps.stats.outputs.change }} | ${{ steps.stats.outputs.replace }} | ${{ steps.stats.outputs.destroy }} |"
-            echo ""
-            echo "[![View Interactive Plan Visualization](https://img.shields.io/badge/View-Interactive%20Plan%20Visualization-2ea44f?style=for-the-badge&logo=terraform&logoColor=white)]($PAGES_URL)"
-            echo ""
-            echo "_Working dir: \`${{ env.TF_WORKING_DIR }}\` • Terraform \`${{ env.TF_VERSION }}\` • Run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "## 🪄 Terraform Plan Visualization" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+          import re
+          with open("plan-visualization.html", "r", encoding="utf-8") as f:
+              html = f.read()
+          match = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL | re.IGNORECASE)
+          body = match.group(1) if match else html
+          body = "\n".join(line.lstrip() for line in body.splitlines())
+          print(body[:900000])
+          PYEOF
 
   # -----------------------------------------------------------------
   # 2. APPLY — only runs on main branch pushes, gated by a
