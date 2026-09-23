@@ -60,20 +60,14 @@ jobs:
           terraform show -json plan.tfplan > plan.json
         continue-on-error: false
 
-      # ---------------------------------------------------------------
-      # Generate a human-readable HTML visualization of the plan
-      # https://github.com/cloudvic-org/terraform-plan-visualizer
-      # ---------------------------------------------------------------
-      - name: Generate Plan Visualization
-        # uses: cloudvic-org/terraform-plan-visualizer@v1
-        # with:
-        #   plan-file: ${{ env.TF_WORKING_DIR }}/plan.json
-        #   output-file: plan-visualization.html
+      - name: Download Plan Visualizer binary
         run: |
-          docker run --rm -v ${{ github.workspace }}:/workspace \
-            cloudvic-org/terraform-plan-visualizer:latest \
-            -i /workspace/${{ env.TF_WORKING_DIR }}/plan.json \
-            -o /workspace/plan-visualization.html
+          curl -L -o terraform-plan-visualizer \
+            https://github.com/cloudvic-org/terraform-plan-visualizer/releases/download/v1.0.1/terraform-plan-visualizer-linux-amd64
+          chmod +x terraform-plan-visualizer
+
+      - name: Generate Plan Visualization
+        run: ./terraform-plan-visualizer -i ${{ env.TF_WORKING_DIR }}/plan.json -o plan-visualization.html
 
       - name: Upload plan file (for apply job)
         uses: actions/upload-artifact@v4
