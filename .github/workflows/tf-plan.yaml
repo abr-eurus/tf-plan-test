@@ -94,7 +94,7 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
+          publish_branch: main
           publish_dir: pages-out
           destination_dir: ${{ steps.viz-path.outputs.path }}
           keep_files: true
