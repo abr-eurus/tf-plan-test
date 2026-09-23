@@ -65,10 +65,15 @@ jobs:
       # https://github.com/cloudvic-org/terraform-plan-visualizer
       # ---------------------------------------------------------------
       - name: Generate Plan Visualization
-        uses: cloudvic-org/terraform-plan-visualizer@v1
-        with:
-          plan-file: ${{ env.TF_WORKING_DIR }}/plan.json
-          output-file: plan-visualization.html
+        # uses: cloudvic-org/terraform-plan-visualizer@v1
+        # with:
+        #   plan-file: ${{ env.TF_WORKING_DIR }}/plan.json
+        #   output-file: plan-visualization.html
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            cloudvic-org/terraform-plan-visualizer:latest \
+            -i /workspace/${{ env.TF_WORKING_DIR }}/plan.json \
+            -o /workspace/plan-visualization.html
 
       - name: Upload plan file (for apply job)
         uses: actions/upload-artifact@v4
