@@ -85,6 +85,7 @@ jobs:
               html = f.read()
           match = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL | re.IGNORECASE)
           body = match.group(1) if match else html
+          body = "\n".join(line.lstrip() for line in body.splitlines())
           print(body[:900000])
           PYEOF
 
