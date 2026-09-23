@@ -12,9 +12,8 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
-  id-token: write   # needed if you use OIDC to assume a cloud role
 
 env:
   TF_WORKING_DIR: infra
@@ -94,32 +93,19 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: main
+          publish_branch: gh-pages
           publish_dir: pages-out
           destination_dir: ${{ steps.viz-path.outputs.path }}
           keep_files: true
 
-      # - name: Upload plan visualization
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: plan-visualization
-      #     path: plan-visualization.html
-      #     retention-days: 5
-
-      - name: Comment plan summary on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const pagesUrl = `https://${owner}.github.io/${repo}/${{ steps.viz-path.outputs.path }}/plan-visualization.html`;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner,
-              repo,
-              body: `🪄 **Terraform plan generated.**\n\nView the interactive visualization here: ${pagesUrl}`
-            });
+      - name: Add visualization link to Job Summary
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          PAGES_URL="https://${OWNER}.github.io/${REPO}/${{ steps.viz-path.outputs.path }}/plan-visualization.html"
+          echo "## 🪄 Terraform Plan Visualization" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[View the interactive plan visualization]($PAGES_URL)" >> "$GITHUB_STEP_SUMMARY"
 
   # -----------------------------------------------------------------
   # 2. APPLY — only runs on main branch pushes, gated by a
