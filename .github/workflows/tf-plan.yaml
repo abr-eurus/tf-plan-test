@@ -75,37 +75,18 @@ jobs:
           path: ${{ env.TF_WORKING_DIR }}/plan.tfplan
           retention-days: 5
       
-      - name: Set visualization path
-        id: viz-path
+      - name: Add visualization to Job Summary
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "path=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "path=run-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Prepare visualization for Pages
-        run: |
-          mkdir -p pages-out
-          cp plan-visualization.html pages-out/plan-visualization.html
-
-      - name: Publish visualization to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: pages-out
-          destination_dir: ${{ steps.viz-path.outputs.path }}
-          keep_files: true
-
-      - name: Add visualization link to Job Summary
-        run: |
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
-          PAGES_URL="https://${OWNER}.github.io/${REPO}/${{ steps.viz-path.outputs.path }}/plan-visualization.html"
           echo "## 🪄 Terraform Plan Visualization" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "[View the interactive plan visualization]($PAGES_URL)" >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PYEOF' >> "$GITHUB_STEP_SUMMARY"
+          import re
+          with open("plan-visualization.html", "r", encoding="utf-8") as f:
+              html = f.read()
+          match = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL | re.IGNORECASE)
+          body = match.group(1) if match else html
+          print(body[:900000])
+          PYEOF
 
   # -----------------------------------------------------------------
   # 2. APPLY — only runs on main branch pushes, gated by a
