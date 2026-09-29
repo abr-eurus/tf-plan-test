@@ -19,7 +19,7 @@ inputs:
   github-token:
     description: >
       A token with `contents: write` on this repo, used to push the
-      visualization to the Pages branch. Usually ${{ secrets.GITHUB_TOKEN }}.
+      visualization to the Pages branch. Usually secrets.GITHUB_TOKEN.
     required: true
   working-directory:
     description: 'Cosmetic label shown in the summary footer (e.g. "infra").'
