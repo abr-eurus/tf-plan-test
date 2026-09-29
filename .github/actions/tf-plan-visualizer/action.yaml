@@ -1,0 +1,133 @@
+name: 'Terraform Plan Visualizer & Summary'
+description: >
+  Generates an interactive HTML visualization of a Terraform plan, publishes
+  it to GitHub Pages, and posts a stats table + clickable link to the Job
+  Summary. Consumers don't need to download the visualizer, run Docker, or
+  write any of that glue themselves — just point it at your plan JSON.
+author: 'abr-eurus'
+
+branding:
+  icon: 'eye'
+  color: 'purple'
+
+inputs:
+  plan-json-path:
+    description: >
+      Path to the Terraform plan JSON file, i.e. the output of
+      `terraform show -json plan.tfplan > plan.json`.
+    required: true
+  github-token:
+    description: >
+      A token with `contents: write` on this repo, used to push the
+      visualization to the Pages branch. Usually ${{ secrets.GITHUB_TOKEN }}.
+    required: true
+  working-directory:
+    description: 'Cosmetic label shown in the summary footer (e.g. "infra").'
+    required: false
+    default: '.'
+  terraform-version:
+    description: 'Cosmetic label shown in the summary footer (e.g. "1.15.8").'
+    required: false
+    default: ''
+  visualizer-version:
+    description: 'Release tag of cloudvic-org/terraform-plan-visualizer to use.'
+    required: false
+    default: 'v1.0.1'
+  pages-branch:
+    description: 'Branch to publish the visualization to.'
+    required: false
+    default: 'gh-pages'
+
+outputs:
+  pages-url:
+    description: 'Public URL of the published, interactive plan visualization.'
+    value: ${{ steps.build-summary.outputs.pages-url }}
+  add-count:
+    description: 'Number of resources to be created.'
+    value: ${{ steps.stats.outputs.add }}
+  change-count:
+    description: 'Number of resources to be updated in place.'
+    value: ${{ steps.stats.outputs.change }}
+  replace-count:
+    description: 'Number of resources to be destroyed and recreated.'
+    value: ${{ steps.stats.outputs.replace }}
+  destroy-count:
+    description: 'Number of resources to be destroyed.'
+    value: ${{ steps.stats.outputs.destroy }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Download Plan Visualizer binary
+      shell: bash
+      run: |
+        curl -L -o "$RUNNER_TEMP/terraform-plan-visualizer" \
+          "https://github.com/cloudvic-org/terraform-plan-visualizer/releases/download/${{ inputs.visualizer-version }}/terraform-plan-visualizer-linux-amd64"
+        chmod +x "$RUNNER_TEMP/terraform-plan-visualizer"
+
+    - name: Generate Plan Visualization
+      shell: bash
+      run: |
+        "$RUNNER_TEMP/terraform-plan-visualizer" \
+          -i "${{ inputs.plan-json-path }}" \
+          -o "$RUNNER_TEMP/plan-visualization.html"
+
+    - name: Extract plan stats
+      id: stats
+      shell: bash
+      run: |
+        PLAN_JSON="${{ inputs.plan-json-path }}"
+        ADD=$(jq '[.resource_changes[]? | select(.change.actions == ["create"])] | length' "$PLAN_JSON")
+        CHANGE=$(jq '[.resource_changes[]? | select(.change.actions == ["update"])] | length' "$PLAN_JSON")
+        DESTROY=$(jq '[.resource_changes[]? | select(.change.actions == ["delete"])] | length' "$PLAN_JSON")
+        REPLACE=$(jq '[.resource_changes[]? | select(.change.actions == ["delete","create"] or .change.actions == ["create","delete"])] | length' "$PLAN_JSON")
+        echo "add=$ADD" >> "$GITHUB_OUTPUT"
+        echo "change=$CHANGE" >> "$GITHUB_OUTPUT"
+        echo "destroy=$DESTROY" >> "$GITHUB_OUTPUT"
+        echo "replace=$REPLACE" >> "$GITHUB_OUTPUT"
+
+    - name: Set visualization path
+      id: viz-path
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "path=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "path=run-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Prepare visualization for Pages
+      shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/pages-out"
+        cp "$RUNNER_TEMP/plan-visualization.html" "$RUNNER_TEMP/pages-out/plan-visualization.html"
+
+    - name: Publish visualization to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ inputs.github-token }}
+        publish_branch: ${{ inputs.pages-branch }}
+        publish_dir: ${{ runner.temp }}/pages-out
+        destination_dir: ${{ steps.viz-path.outputs.path }}
+        keep_files: true
+
+    - name: Build Job Summary
+      id: build-summary
+      shell: bash
+      run: |
+        OWNER="${{ github.repository_owner }}"
+        REPO="${{ github.event.repository.name }}"
+        PAGES_URL="https://${OWNER}.github.io/${REPO}/${{ steps.viz-path.outputs.path }}/plan-visualization.html"
+        echo "pages-url=$PAGES_URL" >> "$GITHUB_OUTPUT"
+
+        {
+          echo "## 🪄 Terraform Plan Summary"
+          echo ""
+          echo "| ✅ Add | 🔄 Change | ♻️ Replace | ❌ Destroy |"
+          echo "|:---:|:---:|:---:|:---:|"
+          echo "| ${{ steps.stats.outputs.add }} | ${{ steps.stats.outputs.change }} | ${{ steps.stats.outputs.replace }} | ${{ steps.stats.outputs.destroy }} |"
+          echo ""
+          echo "[![View Interactive Plan Visualization](https://img.shields.io/badge/View-Interactive%20Plan%20Visualization-2ea44f?style=for-the-badge&logo=terraform&logoColor=white)]($PAGES_URL)"
+          echo ""
+          echo "_Working dir: \`${{ inputs.working-directory }}\` • Terraform \`${{ inputs.terraform-version }}\` • Run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_"
+        } >> "$GITHUB_STEP_SUMMARY"
