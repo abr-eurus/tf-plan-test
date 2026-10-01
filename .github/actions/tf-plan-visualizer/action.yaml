@@ -86,48 +86,41 @@ runs:
         echo "destroy=$DESTROY" >> "$GITHUB_OUTPUT"
         echo "replace=$REPLACE" >> "$GITHUB_OUTPUT"
 
-    - name: Set visualization path
-      id: viz-path
-      shell: bash
-      run: |
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "path=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-        else
-          echo "path=run-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-        fi
+    # - name: Set visualization path
+    #   id: viz-path
+    #   shell: bash
+    #   run: |
+    #     if [ "${{ github.event_name }}" = "pull_request" ]; then
+    #       echo "path=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+    #     else
+    #       echo "path=run-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+    #     fi
 
-    - name: Prepare visualization for Pages
-      shell: bash
-      run: |
-        mkdir -p "$RUNNER_TEMP/pages-out"
-        cp "$RUNNER_TEMP/plan-visualization.html" "$RUNNER_TEMP/pages-out/plan-visualization.html"
+    # - name: Prepare visualization for Pages
+    #   shell: bash
+    #   run: |
+    #     mkdir -p "$RUNNER_TEMP/pages-out"
+    #     cp "$RUNNER_TEMP/plan-visualization.html" "$RUNNER_TEMP/pages-out/plan-visualization.html"
 
-    - name: Publish visualization to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ inputs.github-token }}
-        publish_branch: ${{ inputs.pages-branch }}
-        publish_dir: ${{ runner.temp }}/pages-out
-        destination_dir: ${{ steps.viz-path.outputs.path }}
-        keep_files: true
+    # - name: Publish visualization to GitHub Pages
+    #   uses: peaceiris/actions-gh-pages@v4
+    #   with:
+    #     github_token: ${{ inputs.github-token }}
+    #     publish_branch: ${{ inputs.pages-branch }}
+    #     publish_dir: ${{ runner.temp }}/pages-out
+    #     destination_dir: ${{ steps.viz-path.outputs.path }}
+    #     keep_files: true
 
     - name: Build Job Summary
       id: build-summary
       shell: bash
       run: |
-        OWNER="${{ github.repository_owner }}"
-        REPO="${{ github.event.repository.name }}"
-        PAGES_URL="https://${OWNER}.github.io/${REPO}/${{ steps.viz-path.outputs.path }}/plan-visualization.html"
-        echo "pages-url=$PAGES_URL" >> "$GITHUB_OUTPUT"
-
         {
           echo "## 🪄 Terraform Plan Summary"
           echo ""
           echo "| ✅ Add | 🔄 Change | ♻️ Replace | ❌ Destroy |"
           echo "|:---:|:---:|:---:|:---:|"
           echo "| ${{ steps.stats.outputs.add }} | ${{ steps.stats.outputs.change }} | ${{ steps.stats.outputs.replace }} | ${{ steps.stats.outputs.destroy }} |"
-          echo ""
-          echo "[![View Interactive Plan Visualization](https://img.shields.io/badge/View-Interactive%20Plan%20Visualization-2ea44f?style=for-the-badge&logo=terraform&logoColor=white)]($PAGES_URL)"
           echo ""
           echo "_Working dir: \`${{ inputs.working-directory }}\` • Terraform \`${{ inputs.terraform-version }}\` • Run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_"
         } >> "$GITHUB_STEP_SUMMARY"
