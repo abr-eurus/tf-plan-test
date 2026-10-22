@@ -58,6 +58,7 @@ jobs:
           terraform plan -no-color -out=tfplan
         
       - name: Plan Summary
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform show -json tfplan > plan.json
           python "$GITHUB_WORKSPACE/scripts/tf_summary.py" plan.json "${{ matrix.env || 'plan' }}" >> "$GITHUB_STEP_SUMMARY"
